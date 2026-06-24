@@ -6,6 +6,7 @@ import express, {
   type Response,
 } from "express";
 import cors from "cors";
+import ErrorMiddleware from "./middleware/error";
 
 function createApplication(): Application {
   const app: Application = express();
@@ -38,6 +39,8 @@ function createApplication(): Application {
     error.statusCode = 404;
     next(error);
   });
+
+  app.use(ErrorMiddleware);
 
   return app;
 }
