@@ -7,6 +7,7 @@ import ejs from "ejs";
 import path from "node:path";
 import sendMail from "../utils/sendMail";
 import sendToken from "../utils/jwt";
+import { redis } from "../utils/redis";
 
 interface IRegistirationBody {
   name: string;
@@ -159,7 +160,6 @@ export const loginUser = CatchAsyncError(
       }
 
       await sendToken(user, 200, res);
-
     } catch (error) {
       next(
         new ErrorHandler(
@@ -171,12 +171,12 @@ export const loginUser = CatchAsyncError(
   },
 );
 
-
 export const logoutUser = CatchAsyncError(
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      res.cookie("accessToken","",{maxAge: 1});
-      res.cookie("refreshToken","",{maxAge: 1});
+      res.cookie("accessToken", "", { maxAge: 1 });
+      res.cookie("refreshToken", "", { maxAge: 1 });
+      redis.del(req.user._id);
       res.status(200).json({
         success: true,
         message: "User logged out successfully",
@@ -191,3 +191,17 @@ export const logoutUser = CatchAsyncError(
     }
   },
 );
+
+export const authorizeRoles = (...roles: string[]) => {
+  return (req: Request, res: Response, next: NextFunction) => {
+    if (!roles.includes(req.user?.role) || "") {
+      return next(
+        new ErrorHandler(
+          `Role: ${req.user.role} is not allowed to access this resource`,
+          403,
+        ),
+      );
+    }
+    next();
+  };
+};
