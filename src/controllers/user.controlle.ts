@@ -170,3 +170,24 @@ export const loginUser = CatchAsyncError(
     }
   },
 );
+
+
+export const logoutUser = CatchAsyncError(
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      res.cookie("accessToken","",{maxAge: 1});
+      res.cookie("refreshToken","",{maxAge: 1});
+      res.status(200).json({
+        success: true,
+        message: "User logged out successfully",
+      });
+    } catch (error) {
+      next(
+        new ErrorHandler(
+          error instanceof Error ? error.message : "Something went wrong",
+          400,
+        ),
+      );
+    }
+  },
+);
