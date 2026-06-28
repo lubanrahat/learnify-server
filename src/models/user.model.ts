@@ -86,7 +86,7 @@ userSchema.pre("save", async function () {
 
 userSchema.methods.SignAccessToken = function (): string {
   return jwt.sign({ id: this._id }, process.env.ACCESS_TOKEN!, {
-    expiresIn: "5",
+    expiresIn: "5m",
   });
 };
 

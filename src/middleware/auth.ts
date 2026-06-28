@@ -17,6 +17,8 @@ export const isAuthenticated = CatchAsyncError(
         new ErrorHandler("Please login to access this resource", 401)
       );
     }
+    
+;
 
     const decoded = jwt.verify(
       accessToken,
@@ -31,6 +33,7 @@ export const isAuthenticated = CatchAsyncError(
 
     req.user = JSON.parse(user);
 
+    
     next();
   }
 );

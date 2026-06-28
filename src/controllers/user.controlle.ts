@@ -11,6 +11,7 @@ import sendToken, {
   refreshTokenOptions,
 } from "../utils/jwt";
 import { redis } from "../utils/redis";
+import { getUserById } from "../services/user.service";
 
 interface IRegistirationBody {
   name: string;
@@ -230,7 +231,7 @@ export const updateAccessToken = CatchAsyncError(
       { id: user._id },
       process.env.REFRESH_TOKEN as string,
       {
-        expiresIn: "5m",
+        expiresIn: "3d",
       },
     );
 
@@ -246,5 +247,23 @@ export const updateAccessToken = CatchAsyncError(
         accessToken,
         refreshToken,
       });
+  },
+);
+
+
+export const getUserInfo = CatchAsyncError(
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const userId = req.user?._id;
+      getUserById(userId, res);
+      
+    } catch (error) {
+      next(
+        new ErrorHandler(
+          error instanceof Error ? error.message : "Something went wrong",
+          400,
+        ),
+      );
+    }
   },
 );
