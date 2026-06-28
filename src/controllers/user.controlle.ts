@@ -205,10 +205,10 @@ export const updateAccessToken = CatchAsyncError(
       process.env.REFRESH_TOKEN as string,
     ) as JwtPayload;
 
-    console.log(decoded)
+    console.log(decoded);
 
     if (!decoded) {
-      return next(new ErrorHandler("Could not refresh token", 400));  
+      return next(new ErrorHandler("Could not refresh token", 400));
     }
 
     const session = await redis.get(decoded.id as string);
@@ -235,6 +235,7 @@ export const updateAccessToken = CatchAsyncError(
       },
     );
 
+    req.user = user;
 
     res
       .status(200)
@@ -250,13 +251,11 @@ export const updateAccessToken = CatchAsyncError(
   },
 );
 
-
 export const getUserInfo = CatchAsyncError(
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const userId = req.user?._id;
       getUserById(userId, res);
-      
     } catch (error) {
       next(
         new ErrorHandler(
@@ -265,5 +264,82 @@ export const getUserInfo = CatchAsyncError(
         ),
       );
     }
+  },
+);
+
+interface ISocialAuthRequestBody {
+  name: string;
+  email: string;
+  avatar: string;
+}
+
+export const socialAuth = CatchAsyncError(
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { name, email, avatar } = req.body as ISocialAuthRequestBody;
+
+      let user = await User.findOne({ email });
+
+      if (!user) {
+        user = await User.create({
+          name,
+          email,
+          avatar: {
+            url: avatar,
+          },
+        });
+      }
+
+      await sendToken(user, 200, res);
+    } catch (error) {
+      next(
+        new ErrorHandler(
+          error instanceof Error ? error.message : "Something went wrong",
+          400,
+        ),
+      );
+    }
+  },
+);
+
+interface IUpdateUserInfo {
+  name?: string;
+  email?: string;
+}
+
+export const updateUserInfo = CatchAsyncError(
+  async (req: Request, res: Response, next: NextFunction) => {
+    const userId = req.user?._id;
+    const { name, email } = req.body as IUpdateUserInfo;
+
+    const user = await User.findById(userId);
+
+    if (!user) {
+      return next(new ErrorHandler("User not found", 404));
+    }
+
+    if (email) {
+      const isEmailExist = await User.findOne({ email });
+
+      if (isEmailExist && isEmailExist._id.toString() !== userId.toString()) {
+        return next(new ErrorHandler("Email already exists", 400));
+      }
+
+      user.email = email;
+    }
+
+    if (name) {
+      user.name = name;
+    }
+
+    await user.save();
+
+    await redis.set(userId.toString(), JSON.stringify(user));
+
+    res.status(200).json({
+      success: true,
+      message: "User information updated successfully",
+      user,
+    });
   },
 );
