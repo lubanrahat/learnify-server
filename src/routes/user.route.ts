@@ -10,7 +10,7 @@ import {
   updatePassword,
   updateProfilePicture,
   updateUserInfo,
-} from "../controllers/user.controlle";
+} from "../controllers/user.controller";
 import { isAuthenticated } from "../middleware/auth";
 
 const router = express.Router();
