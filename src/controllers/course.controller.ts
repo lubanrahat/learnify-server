@@ -5,6 +5,7 @@ import { createCourse } from "../services/course.service";
 import CourseModel from "../models/course.model";
 import ErrorHandler from "../utils/ErrorHandler";
 import { redis } from "../utils/redis";
+import mongoose from "mongoose";
 
 export const uploadCourse = CatchAsyncError(
   async (req: Request, res: Response, next: NextFunction) => {
@@ -141,6 +142,152 @@ export const getCourseByUser = CatchAsyncError(
       });
     } catch (error) {
       next(new ErrorHandler("Failed to get courses", 500));
+    }
+  },
+);
+
+interface IAddQuestionData {
+  questions: string;
+  courseId: string;
+  contentId?: string;
+}
+
+export const addQuestion = CatchAsyncError(
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { questions, courseId, contentId } = req.body as IAddQuestionData;
+
+      if (!questions) {
+        return next(new ErrorHandler("Question is required", 400));
+      }
+
+      if (!courseId || !mongoose.Types.ObjectId.isValid(courseId)) {
+        return next(new ErrorHandler("Invalid course id", 400));
+      }
+
+      if (!contentId || !mongoose.Types.ObjectId.isValid(contentId)) {
+        return next(new ErrorHandler("Invalid content id", 400));
+      }
+
+      await CourseModel.collection.updateOne(
+        { _id: new mongoose.Types.ObjectId(courseId) },
+        [
+          {
+            $set: {
+              courseData: {
+                $map: {
+                  input: { $ifNull: ["$courseData", []] },
+                  as: "item",
+                  in: {
+                    $mergeObjects: [
+                      "$$item",
+                      {
+                        questions: {
+                          $cond: [
+                            { $isArray: "$$item.questions" },
+                            "$$item.questions",
+                            [],
+                          ],
+                        },
+                      },
+                    ],
+                  },
+                },
+              },
+            },
+          },
+        ],
+      );
+
+      // Load the sanitized course through Mongoose
+      const course = await CourseModel.findById(courseId);
+
+      if (!course) {
+        return next(new ErrorHandler("Course not found", 404));
+      }
+
+      const courseContent = course.courseData?.find(
+        (item) => item._id?.toString() === contentId.toString(),
+      );
+
+      if (!courseContent) {
+        return next(new ErrorHandler("Content not found", 404));
+      }
+
+      courseContent.questions.push({
+        user: req.user._id,
+        questions,
+        questionReplies: [],
+      } as any);
+
+      course.markModified("courseData");
+      await course.save();
+
+      res.status(200).json({
+        success: true,
+        message: "Question added successfully",
+        course,
+      });
+    } catch (error) {
+      next(
+        new ErrorHandler(
+          error instanceof Error ? error.message : "Failed to add question",
+          500,
+        ),
+      );
+    }
+  },
+);
+
+interface IAddAnswerData {
+  answer: string;
+  courseId: string;
+  contentId: string;
+  questionId: string;
+}
+
+export const addAnswer = CatchAsyncError(
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { answer, courseId, contentId, questionId }: IAddAnswerData =
+        req.body;
+
+      const course = await CourseModel.findById(courseId);
+
+      if (!mongoose.Types.ObjectId.isValid(contentId)) {
+        return next(new ErrorHandler("Invalid content id", 400));
+      }
+
+      const courseContent = course?.courseData?.find((item: any) =>
+        item._id.equals(contentId),
+      );
+
+      if(!courseContent) {
+        return next(new ErrorHandler("Invalid content id",400))
+      }
+
+      const question = courseContent?.questions?.find((item: any) => item._id.equals(questionId))
+
+      if(!courseContent) {
+        return next(new ErrorHandler("Invalid question id",400))
+      }
+
+      const newAnswer:any = {
+        user: req.user,
+        answer
+      }
+
+      question?.questionReplies?.push(newAnswer)
+
+      await course?.save();
+
+    } catch (error) {
+      next(
+        new ErrorHandler(
+          error instanceof Error ? error.message : "Failed to add answer",
+          500,
+        ),
+      );
     }
   },
 );
