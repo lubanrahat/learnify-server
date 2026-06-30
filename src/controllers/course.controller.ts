@@ -4,6 +4,7 @@ import cloudinary from "cloudinary";
 import { createCourse } from "../services/course.service";
 import CourseModel from "../models/course.model";
 import ErrorHandler from "../utils/ErrorHandler";
+import { redis } from "../utils/redis";
 
 export const uploadCourse = CatchAsyncError(
   async (req: Request, res: Response, next: NextFunction) => {
@@ -59,34 +60,58 @@ export const editCourse = CatchAsyncError(
 export const getSingleCourse = CatchAsyncError(
   async (req: Request, res: Response, next: NextFunction) => {
     const courseId = req.params.id;
+
+    const isCachedCourse = await redis.get(courseId as string);
+    if (isCachedCourse) {
+      return res.status(200).json({
+        success: true,
+        message: "Course fetched successfully!",
+        course: JSON.parse(isCachedCourse),
+      });
+    }
+
     if (!courseId) {
       throw new ErrorHandler("Course not found", 404);
+    } else {
+      const course = await CourseModel.findById(courseId).select(
+        "-courseData.videoUrl -courseData.suggestion -courseData.questions -courseData.links",
+      );
+      if (!course) {
+        throw new ErrorHandler("Course not found", 404);
+      }
+      await redis.set(courseId as string, JSON.stringify(course));
+      res.status(200).json({
+        success: true,
+        message: "Course fetched successfully!",
+        course,
+      });
     }
-    const course = await CourseModel.findById(courseId).select(
-      "-courseData.videoUrl -courseData.suggestion -courseData.questions -courseData.links",
-    );
-    if (!course) {
-      throw new ErrorHandler("Course not found", 404);
-    }
-    res.status(200).json({
-      success: true,
-      message: "Course fetched successfully!",
-      course,
-    });
   },
 );
 
 export const getAllCourses = CatchAsyncError(
   async (req: Request, res: Response, next: NextFunction) => {
-   try {
-     const courses = await CourseModel.find().select("-courseData.videoUrl -courseData.suggestion -courseData.questions -courseData.links");
-     res.status(200).json({
-       success: true,
-       courses,
-       message: "Courses fetched successfully!",
-     });
-   } catch (error) {
-    next(new ErrorHandler("Failed to get courses", 500));
-   }
+    try {
+      const isCachedCourses = await redis.get("allCourses");
+      if (isCachedCourses) {
+        return res.status(200).json({
+          success: true,
+          courses: JSON.parse(isCachedCourses),
+          message: "Courses fetched successfully!",
+        });
+      } else {
+        const courses = await CourseModel.find().select(
+          "-courseData.videoUrl -courseData.suggestion -courseData.questions -courseData.links",
+        );
+        await redis.set("allCourses", JSON.stringify(courses));
+        res.status(200).json({
+          success: true,
+          courses,
+          message: "Courses fetched successfully!",
+        });
+      }
+    } catch (error) {
+      next(new ErrorHandler("Failed to get courses", 500));
+    }
   },
 );

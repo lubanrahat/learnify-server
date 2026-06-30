@@ -2,7 +2,7 @@ import http from "http";
 import "dotenv/config";
 import createApplication from "./app";
 import connectDB from "./utils/db";
-import {v2 as cloudinary} from "cloudinary";
+import { v2 as cloudinary } from "cloudinary";
 
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
@@ -16,7 +16,7 @@ function main() {
     const app = createApplication();
     const server = http.createServer(app);
     server.listen(port, () => {
-      console.log(`Server is running on port ${port}`);
+      console.log(`Server is running on port ${port} ✅ 🚀`);
       connectDB();
     });
   } catch (error) {
