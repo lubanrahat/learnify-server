@@ -3,6 +3,8 @@ import "dotenv/config";
 import createApplication from "./app";
 import connectDB from "./utils/db";
 import { v2 as cloudinary } from "cloudinary";
+import cron from "node-cron";
+import NotificationModel from "./models/notification.model";
 
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
@@ -25,3 +27,26 @@ function main() {
 }
 
 main();
+
+cron.schedule(
+  "0 0 0 * * *",
+  async () => {
+    try {
+      const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+
+      const result = await NotificationModel.deleteMany({
+        status: "read",
+        createdAt: {
+          $lt: thirtyDaysAgo,
+        },
+      });
+
+      console.log(`🗑️ Deleted ${result.deletedCount} old notifications`);
+    } catch (error) {
+      console.error("Cron job failed:", error);
+    }
+  },
+  {
+    timezone: "Asia/Dhaka",
+  },
+);

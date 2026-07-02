@@ -9,6 +9,7 @@ import mongoose from "mongoose";
 import ejs from "ejs";
 import path from "node:path";
 import sendMail from "../utils/sendMail";
+import NotificationModel from "../models/notification.model";
 
 export const uploadCourse = CatchAsyncError(
   async (req: Request, res: Response, next: NextFunction) => {
@@ -226,6 +227,12 @@ export const addQuestion = CatchAsyncError(
       course.markModified("courseData");
       await course.save();
 
+      await NotificationModel.create({
+        userId: req.user._id,
+        title: "New Question Received",
+        message: `You have a new question in ${courseContent.title}`,
+      });
+
       res.status(200).json({
         success: true,
         message: "Question added successfully",
@@ -288,6 +295,11 @@ export const addAnswer = CatchAsyncError(
 
       if (req.user._id === question?.user._id) {
         //create a notification
+        await NotificationModel.create({
+          userId: req.user._id,
+          title: "New Question Reply Received",
+          message: `You have a new question reply in ${courseContent.title}`,
+        });
       } else {
         const data = {
           name: question?.user.name,
@@ -402,30 +414,32 @@ export const addReplyToReview = CatchAsyncError(
     try {
       const { comment, courseId, reviewId } = req.body as IAddReplyToReviewData;
 
-      if(!comment || !courseId || !reviewId) {
+      if (!comment || !courseId || !reviewId) {
         return next(new ErrorHandler("All fields are required", 400));
       }
 
-      if(!mongoose.Types.ObjectId.isValid(courseId)) {
+      if (!mongoose.Types.ObjectId.isValid(courseId)) {
         return next(new ErrorHandler("Invalid course id", 400));
       }
-      
-      if(!mongoose.Types.ObjectId.isValid(reviewId)) {
+
+      if (!mongoose.Types.ObjectId.isValid(reviewId)) {
         return next(new ErrorHandler("Invalid review id", 400));
       }
 
       const course = await CourseModel.findById(courseId);
 
-      if(!course) {
+      if (!course) {
         return next(new ErrorHandler("Course not found", 404));
       }
-      
-      const review = course?.reviews?.find((review: any) => review._id.toString() === reviewId.toString());
 
-      if(!review) {
+      const review = course?.reviews?.find(
+        (review: any) => review._id.toString() === reviewId.toString(),
+      );
+
+      if (!review) {
         return next(new ErrorHandler("Review not found", 404));
       }
-      
+
       const newReply: any = {
         user: req.user,
         comment,
@@ -433,11 +447,19 @@ export const addReplyToReview = CatchAsyncError(
 
       review?.commentReplies?.push(newReply);
       await course?.save();
-      
-      res.status(200).json({ success: true, message: "Reply added successfully", course });  
-      
-    } catch (error) { 
-      next(new ErrorHandler(error instanceof Error ? error.message : "Failed to add reply to review", 500));
+
+      res
+        .status(200)
+        .json({ success: true, message: "Reply added successfully", course });
+    } catch (error) {
+      next(
+        new ErrorHandler(
+          error instanceof Error
+            ? error.message
+            : "Failed to add reply to review",
+          500,
+        ),
+      );
     }
   },
 );

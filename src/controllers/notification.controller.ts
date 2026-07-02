@@ -15,3 +15,25 @@ export const getNotification = CatchAsyncError(async (req: Request,res: Response
         return next(new ErrorHandler(error.message,400))
     }
 })
+
+export const updateNotification = CatchAsyncError(async (req: Request,res: Response,next: NextFunction) => {
+    try {
+        const notification = await NotificationModel.findById(req.params.id);
+        if(!notification) {
+            return next(new ErrorHandler("Notification not found!",400))
+        }else {
+            notification.status ? notification.status = "read" : notification?.status
+        }
+
+        await notification.save();
+
+        const notifications = await NotificationModel.find().sort({createAt: -1})
+
+        res.status(201).json({
+            success: true,
+            notification
+        })
+    } catch (error: any) {
+        return next(new ErrorHandler(error.message,400))
+    }
+})
